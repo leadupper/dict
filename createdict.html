@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LinguaDesk 通用辭典建置編輯器 (英漢/漢英)</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --success: #10b981;
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #cbd5e1;
+      --radius: 8px;
+      --header-height: 56px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Noto Sans TC", sans-serif; 
+      background: var(--bg); 
+      color: var(--text); 
+      display: flex; 
+      height: 100vh; 
+      height: 100dvh;
+      overflow: hidden; 
+    }
+    
+    /* 流動版頂部導航列 (Mobile Header) */
+    .mobile-header {
+      display: none;
+      height: var(--header-height);
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 0 12px;
+      align-items: center;
+      justify-content: space-between;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+    }
+    .mobile-title { font-weight: 600; font-size: 1rem; color: var(--text); }
+    .icon-btn {
+      background: none;
+      border: none;
+      font-size: 1.4rem;
+      cursor: pointer;
+      padding: 6px 10px;
+      border-radius: var(--radius);
+      color: var(--text);
+    }
+    .icon-btn:active { background: #e2e8f0; }
+
+    /* 側邊欄 Sidebar */
+    .sidebar { 
+      width: 320px; 
+      background: var(--panel); 
+      border-right: 1px solid var(--border); 
+      display: flex; 
+      flex-direction: column; 
+      flex-shrink: 0; 
+      transition: transform 0.3s ease;
+      z-index: 30;
+    }
+    .meta-panel { padding: 12px; border-bottom: 1px solid var(--border); background: #f1f5f9; }
+    .meta-panel label { display: block; margin-bottom: 4px; font-size: 0.75rem; font-weight: bold; color: var(--text-muted); }
+    .meta-panel select, .meta-panel input { width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: white; }
+    .action-bar { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
+    
+    .btn { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--border); background: white; cursor: pointer; font-size: 0.88rem; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 6px; touch-action: manipulation; }
+    .btn:hover { background: #f8fafc; }
+    .btn-primary { background: var(--primary); color: white; border: none; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-danger { color: var(--danger); border-color: var(--danger); }
+    .btn-danger:hover { background: #fef2f2; }
+    
+    .word-list { flex: 1; overflow-y: auto; list-style: none; }
+    .word-item { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .word-item:hover { background: #eff6ff; }
+    .word-item.active { background: #e0e7ff; font-weight: 600; border-left: 4px solid var(--primary); }
+
+    /* 遮罩層 (Mobile Sidebar Backdrop) */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(2px);
+      z-index: 25;
+    }
+
+    /* 主編輯區 Main Area */
+    .main-area { flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 20px 24px; }
+    .top-toolbar { max-width: 900px; margin: 0 auto 16px auto; width: 100%; display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+    .editor-card { background: var(--panel); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; max-width: 900px; width: 100%; margin: 0 auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .form-group { margin-bottom: 14px; flex: 1; }
+    .form-group label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px; color: var(--text-muted); }
+    .form-control { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 0.95rem; }
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    /* 詞性與釋義組 */
+    .pos-box { border: 1.5px solid #cbd5e1; background: #f8fafc; border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+    .pos-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; }
+    .sense-box { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    .example-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+
+    /* RWD 響應式介面微調 */
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      .mobile-header { display: flex; }
+      
+      .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        transform: translateX(-100%);
+        box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+      }
+      .sidebar.open {
+        transform: translateX(0);
+      }
+      .sidebar-overlay.open {
+        display: block;
+      }
+
+      .main-area {
+        padding: 16px;
+        margin-top: var(--header-height);
+        height: calc(100vh - var(--header-height));
+        height: calc(100dvh - var(--header-height));
+      }
+
+      .editor-card { padding: 16px; }
+      .form-row { flex-direction: column; gap: 0; }
+      .example-row { flex-direction: column; align-items: stretch; background: #f8fafc; padding: 8px; border-radius: 6px; border: 1px dashed var(--border); }
+      .example-row .btn-danger { align-self: flex-end; margin-top: 4px; }
+      
+      .top-toolbar { justify-content: space-between; }
+      .top-toolbar .btn { flex: 1; text-align: center; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 流動版 Header -->
+  <header class="mobile-header">
+    <button class="icon-btn" onclick="toggleSidebar()" aria-label="選單">☰</button>
+    <span class="mobile-title" id="mobileTitle">LinguaDesk</span>
+    <button class="icon-btn" onclick="addNewWord()" aria-label="新增詞條">+</button>
+  </header>
+
+  <!-- 側邊欄遮罩 (Mobile) -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar(false)"></div>
+
+  <!-- 側邊欄 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="meta-panel">
+      <label>辭典類型 (語言方向)</label>
+      <select id="dictType" onchange="handleTypeChange()">
+        <option value="en_zh">英漢辭典 (English -> 中文)</option>
+        <option value="zh_en">漢英辭典 (中文 -> English)</option>
+      </select>
+      <input type="text" id="dictName" placeholder="辭典名稱" value="實用漢英辭典" oninput="saveDraft()">
+      <input type="text" id="dictId" placeholder="辭典代號 ID" value="my_ce_dict" oninput="saveDraft()">
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-primary" style="flex: 1;" onclick="addNewWord()">+ 新增詞條</button>
+      <button class="btn" style="flex: 1;" onclick="document.getElementById('importFile').click()">📂 開啟舊檔</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="loadFromFile(event)">
+    </div>
+
+    <ul class="word-list" id="wordList"></ul>
+  </aside>
+
+  <!-- 主編輯區 -->
+  <main class="main-area">
+    <div class="top-toolbar">
+      <button class="btn btn-danger" onclick="deleteCurrentWord()">刪除詞條</button>
+      <button class="btn btn-primary" onclick="exportDictionary()" style="background:var(--success);">💾 匯出 JSON 辭典檔</button>
+    </div>
+
+    <div class="editor-card">
+      <div class="form-row">
+        <div class="form-group" style="flex: 2;">
+          <label id="lblWord">詞頭</label>
+          <input type="text" id="inpWord" class="form-control" oninput="updateWordHead(this.value)">
+        </div>
+        <div class="form-group" style="flex: 1;">
+          <label id="lblPron">讀音 (音標 / 拼音 / 粵拼)</label>
+          <input type="text" id="inpPron" class="form-control" oninput="updatePron(this.value)">
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0 10px 0;">
+        <h4 style="font-size: 0.95rem;">詞性與釋義組</h4>
+        <button class="btn" onclick="addPosGroup()">+ 新增詞性 (POS)</button>
+      </div>
+
+      <!-- 動態容器 -->
+      <div id="posContainer"></div>
+    </div>
+  </main>
+
+  <script>
+    let dictData = {
+      id: "my_ce_dict",
+      name: "實用漢英辭典",
+      lang_source: "zh",
+      lang_target: "en",
+      entries: []
+    };
+
+    let curIdx = 0;
+
+    // 開關 Mobile 側邊欄
+    function toggleSidebar(show) {
+      const sidebar = document.getElementById("sidebar");
+      const overlay = document.getElementById("sidebarOverlay");
+      const shouldOpen = show !== undefined ? show : !sidebar.classList.contains("open");
+      
+      if (shouldOpen) {
+        sidebar.classList.add("open");
+        overlay.classList.add("open");
+      } else {
+        sidebar.classList.remove("open");
+        overlay.classList.remove("open");
+      }
+    }
+
+    // 初始化預設詞條
+    function createDefaultEntry() {
+      const isZh = dictData.lang_source === "zh";
+      return {
+        word: isZh ? "堅持" : "persist",
+        pron: isZh ? "jiān chí / gin1 ci4" : "/pəˈsɪst/",
+        pos_groups: [
+          {
+            pos: "v. 動詞",
+            senses: [
+              {
+                primary: isZh ? "persist in; persevere" : "堅持；固執",
+                secondary: isZh ? "堅定不移地繼續" : "continue firmly or obstinately",
+                examples: [
+                  { 
+                    src: isZh ? "只要堅持到底，必會成功。" : "You must persist in your studies.", 
+                    tgt: isZh ? "As long as you persevere to the end, you will succeed." : "你必須堅持學習。" 
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+    }
+
+    function saveDraft() {
+      dictData.name = document.getElementById("dictName").value.trim();
+      dictData.id = document.getElementById("dictId").value.trim();
+      document.getElementById("mobileTitle").innerText = dictData.name || "LinguaDesk";
+      localStorage.setItem("lingua_creator_data", JSON.stringify(dictData));
+    }
+
+    function handleTypeChange() {
+      const type = document.getElementById("dictType").value;
+      if (type === "en_zh") {
+        dictData.lang_source = "en";
+        dictData.lang_target = "zh";
+        document.getElementById("dictName").value = "自訂實用英漢辭典";
+        document.getElementById("lblWord").innerText = "英文單字 (English Word)";
+        document.getElementById("lblPron").innerText = "IPA 國際音標 (Phonetic)";
+      } else {
+        dictData.lang_source = "zh";
+        dictData.lang_target = "en";
+        document.getElementById("dictName").value = "實用漢英辭典";
+        document.getElementById("lblWord").innerText = "中文詞彙 (Chinese Word)";
+        document.getElementById("lblPron").innerText = "拼音 / 粵拼 (Pinyin / Jyutping)";
+      }
+      saveDraft();
+      renderEditor();
+    }
+
+    function renderList() {
+      const el = document.getElementById("wordList");
+      el.innerHTML = "";
+      dictData.entries.forEach((item, idx) => {
+        const li = document.createElement("li");
+        li.className = `word-item ${idx === curIdx ? 'active' : ''}`;
+        li.innerHTML = `
+          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;">${item.word || '(未填寫)'}</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">${item.pos_groups[0]?.pos || ''}</span>
+        `;
+        li.onclick = () => {
+          curIdx = idx;
+          renderEditor();
+          toggleSidebar(false); // 選取後自動關閉側邊欄 (Mobile)
+        };
+        el.appendChild(li);
+      });
+    }
+
+    function renderEditor() {
+      renderList();
+      const item = dictData.entries[curIdx];
+      if (!item) return;
+
+      document.getElementById("inpWord").value = item.word || "";
+      document.getElementById("inpPron").value = item.pron || "";
+
+      const container = document.getElementById("posContainer");
+      container.innerHTML = "";
+
+      const isZh = dictData.lang_source === "zh";
+      const primLabel = isZh ? "英文主釋義 (例: persist; insist)" : "中文主釋義 (例: 堅持；執著)";
+      const secLabel = isZh ? "中文補充說明 (可選填)" : "英文原語釋義 (可選填)";
+      const srcLabel = isZh ? "中文例句" : "英文例句";
+      const tgtLabel = isZh ? "英文翻譯" : "中文翻譯";
+
+      item.pos_groups.forEach((g, gIdx) => {
+        const pBox = document.createElement("div");
+        pBox.className = "pos-box";
+
+        const pHeader = document.createElement("div");
+        pHeader.className = "pos-header";
+        pHeader.innerHTML = `
+          <input type="text" class="form-control" style="max-width:180px; font-weight:bold;" value="${g.pos}">
+          <button class="btn btn-danger" type="button">刪除詞性</button>
+        `;
+        pHeader.querySelector("input").oninput = (e) => updatePosTitle(gIdx, e.target.value);
+        pHeader.querySelector("button").onclick = () => removePosGroup(gIdx);
+        pBox.appendChild(pHeader);
+
+        const sensesContainer = document.createElement("div");
+        g.senses.forEach((s, sIdx) => {
+          const sBox = document.createElement("div");
+          sBox.className = "sense-box";
+
+          const topBar = document.createElement("div");
+          topBar.style.display = "flex";
+          topBar.style.justifyContent = "space-between";
+          topBar.style.marginBottom = "6px";
+          topBar.innerHTML = `<span style="font-size:0.75rem; font-weight:bold; color:var(--text-muted);">釋義 #${sIdx+1}</span>`;
+          
+          if (g.senses.length > 1) {
+            const delSenseBtn = document.createElement("a");
+            delSenseBtn.href = "javascript:void(0)";
+            delSenseBtn.style.color = "red";
+            delSenseBtn.style.fontSize = "0.75rem";
+            delSenseBtn.innerText = "刪除";
+            delSenseBtn.onclick = () => removeSense(gIdx, sIdx);
+            topBar.appendChild(delSenseBtn);
+          }
+          sBox.appendChild(topBar);
+
+          const inPrim = document.createElement("input");
+          inPrim.className = "form-control";
+          inPrim.style.marginBottom = "6px";
+          inPrim.placeholder = primLabel;
+          inPrim.value = s.primary || "";
+          inPrim.oninput = (e) => updateSenseField(gIdx, sIdx, 'primary', e.target.value);
+          sBox.appendChild(inPrim);
+
+          const inSec = document.createElement("input");
+          inSec.className = "form-control";
+          inSec.style.marginBottom = "6px";
+          inSec.placeholder = secLabel;
+          inSec.value = s.secondary || "";
+          inSec.oninput = (e) => updateSenseField(gIdx, sIdx, 'secondary', e.target.value);
+          sBox.appendChild(inSec);
+
+          const exArea = document.createElement("div");
+          exArea.style.marginTop = "8px";
+          exArea.innerHTML = `<span style="font-size:0.75rem; font-weight:600; color:var(--text-muted);">雙語例句:</span>`;
+          
+          const exListWrap = document.createElement("div");
+          (s.examples || []).forEach((ex, eIdx) => {
+            const exRow = document.createElement("div");
+            exRow.className = "example-row";
+
+            const inSrc = document.createElement("input");
+            inSrc.className = "form-control";
+            inSrc.style.flex = "1";
+            inSrc.placeholder = srcLabel;
+            inSrc.value = ex.src || "";
+            inSrc.oninput = (e) => updateExampleField(gIdx, sIdx, eIdx, 'src', e.target.value);
+
+            const inTgt = document.createElement("input");
+            inTgt.className = "form-control";
+            inTgt.style.flex = "1";
+            inTgt.placeholder = tgtLabel;
+            inTgt.value = ex.tgt || "";
+            inTgt.oninput = (e) => updateExampleField(gIdx, sIdx, eIdx, 'tgt', e.target.value);
+
+            const delExBtn = document.createElement("button");
+            delExBtn.type = "button";
+            delExBtn.className = "btn btn-danger";
+            delExBtn.innerText = "× 刪除例句";
+            delExBtn.onclick = () => removeExample(gIdx, sIdx, eIdx);
+
+            exRow.appendChild(inSrc);
+            exRow.appendChild(inTgt);
+            exRow.appendChild(delExBtn);
+            exListWrap.appendChild(exRow);
+          });
+          exArea.appendChild(exListWrap);
+
+          const addExBtn = document.createElement("button");
+          addExBtn.type = "button";
+          addExBtn.className = "btn";
+          addExBtn.style.fontSize = "0.75rem";
+          addExBtn.style.marginTop = "6px";
+          addExBtn.innerText = "+ 加入例句";
+          addExBtn.onclick = () => addExample(gIdx, sIdx);
+          exArea.appendChild(addExBtn);
+
+          sBox.appendChild(exArea);
+          sensesContainer.appendChild(sBox);
+        });
+        pBox.appendChild(sensesContainer);
+
+        const addSenseBtn = document.createElement("button");
+        addSenseBtn.type = "button";
+        addSenseBtn.className = "btn";
+        addSenseBtn.style.marginTop = "6px";
+        addSenseBtn.style.fontSize = "0.75rem";
+        addSenseBtn.innerText = "+ 新增釋義";
+        addSenseBtn.onclick = () => addSense(gIdx);
+        pBox.appendChild(addSenseBtn);
+
+        container.appendChild(pBox);
+      });
+    }
+
+    function updateWordHead(val) {
+      dictData.entries[curIdx].word = val.trim();
+      saveDraft();
+      renderList();
+    }
+
+    function updatePron(val) {
+      dictData.entries[curIdx].pron = val.trim();
+      saveDraft();
+    }
+
+    function updatePosTitle(gIdx, val) {
+      dictData.entries[curIdx].pos_groups[gIdx].pos = val;
+      saveDraft();
+      renderList();
+    }
+
+    function updateSenseField(gIdx, sIdx, key, val) {
+      dictData.entries[curIdx].pos_groups[gIdx].senses[sIdx][key] = val;
+      saveDraft();
+    }
+
+    function updateExampleField(gIdx, sIdx, eIdx, key, val) {
+      dictData.entries[curIdx].pos_groups[gIdx].senses[sIdx].examples[eIdx][key] = val;
+      saveDraft();
+    }
+
+    function addPosGroup() {
+      dictData.entries[curIdx].pos_groups.push({
+        pos: "n. 名詞",
+        senses: [{ primary: "", secondary: "", examples: [] }]
+      });
+      saveDraft();
+      renderEditor();
+    }
+
+    function removePosGroup(gIdx) {
+      if (dictData.entries[curIdx].pos_groups.length <= 1) {
+        alert("詞條最少必須保留一個詞性分組！");
+        return;
+      }
+      dictData.entries[curIdx].pos_groups.splice(gIdx, 1);
+      saveDraft();
+      renderEditor();
+    }
+
+    function addSense(gIdx) {
+      dictData.entries[curIdx].pos_groups[gIdx].senses.push({
+        primary: "",
+        secondary: "",
+        examples: []
+      });
+      saveDraft();
+      renderEditor();
+    }
+
+    function removeSense(gIdx, sIdx) {
+      dictData.entries[curIdx].pos_groups[gIdx].senses.splice(sIdx, 1);
+      saveDraft();
+      renderEditor();
+    }
+
+    function addExample(gIdx, sIdx) {
+      if (!dictData.entries[curIdx].pos_groups[gIdx].senses[sIdx].examples) {
+        dictData.entries[curIdx].pos_groups[gIdx].senses[sIdx].examples = [];
+      }
+      dictData.entries[curIdx].pos_groups[gIdx].senses[sIdx].examples.push({ src: "", tgt: "" });
+      saveDraft();
+      renderEditor();
+    }
+
+    function removeExample(gIdx, sIdx, eIdx) {
+      dictData.entries[curIdx].pos_groups[gIdx].senses[sIdx].examples.splice(eIdx, 1);
+      saveDraft();
+      renderEditor();
+    }
+
+    function addNewWord() {
+      dictData.entries.unshift(createDefaultEntry());
+      curIdx = 0;
+      saveDraft();
+      renderEditor();
+      toggleSidebar(false);
+      document.getElementById("inpWord").focus();
+    }
+
+    function deleteCurrentWord() {
+      if (dictData.entries.length <= 1) {
+        alert("詞典內最少請保留一筆詞條！");
+        return;
+      }
+      if (confirm(`確定要刪除「${dictData.entries[curIdx].word || '未填寫'}」嗎？`)) {
+        dictData.entries.splice(curIdx, 1);
+        curIdx = Math.max(0, curIdx - 1);
+        saveDraft();
+        renderEditor();
+      }
+    }
+
+    function exportDictionary() {
+      saveDraft();
+      const exportCopy = JSON.parse(JSON.stringify(dictData));
+      
+      exportCopy.entries.forEach(entry => {
+        entry.pos_groups.forEach(g => {
+          g.senses.forEach(s => {
+            if (s.examples) {
+              s.examples = s.examples.filter(ex => ex.src.trim() !== "" || ex.tgt.trim() !== "");
+            }
+          });
+        });
+      });
+
+      const blob = new Blob([JSON.stringify(exportCopy, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${exportCopy.id || 'dictionary'}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function loadFromFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const json = JSON.parse(evt.target.result);
+          if (!json.entries || !Array.isArray(json.entries)) {
+            alert("檔案格式不合符規範！");
+            return;
+          }
+          dictData = json;
+          document.getElementById("dictId").value = dictData.id || "my_dict";
+          document.getElementById("dictName").value = dictData.name || "未命名詞典";
+          document.getElementById("dictType").value = dictData.lang_source === "zh" ? "zh_en" : "en_zh";
+          curIdx = 0;
+          saveDraft();
+          handleTypeChange();
+          alert(`成功載入詞典「${dictData.name}」，共收錄 ${dictData.entries.length} 條詞彙！`);
+        } catch(err) {
+          alert("讀取檔案失敗，請確保這是合法的 JSON 檔案！");
+        }
+      };
+      reader.readAsText(file, "UTF-8");
+      e.target.value = "";
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const local = localStorage.getItem("lingua_creator_data");
+      if (local) {
+        try {
+          dictData = JSON.parse(local);
+          document.getElementById("dictName").value = dictData.name;
+          document.getElementById("dictId").value = dictData.id;
+          document.getElementById("dictType").value = dictData.lang_source === "zh" ? "zh_en" : "en_zh";
+        } catch(e) {}
+      }
+
+      if (dictData.entries.length === 0) {
+        dictData.entries.push(createDefaultEntry());
+      }
+
+      handleTypeChange();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>LinguaDesk 辭典</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-light: #eff6ff;
+      --bg-base: #f8fafc;
+      --panel-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --tag-bg: #e0e7ff;
+      --tag-text: #3730a3;
+      --danger: #ef4444;
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Noto Sans TC", sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      display: flex;
+      height: 100vh;
+      height: 100dvh; /* 完美相容手機動態工具列 */
+      overflow: hidden;
+    }
+
+    /* ========================================================
+       桌面版佈局 (Desktop Default)
+       ======================================================== */
+    .sidebar {
+      width: 350px;
+      background: var(--panel-bg);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      height: 100%;
+      z-index: 10;
+      transition: transform 0.25s ease;
+    }
+
+    .header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dict-selector-wrap {
+      padding: 8px 16px;
+      background: #f1f5f9;
+      border-bottom: 1px solid var(--border);
+    }
+    .dict-selector-wrap select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      font-size: 0.85rem;
+      background: white;
+      outline: none;
+    }
+
+    .search-form-wrap {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .search-input-group {
+      display: flex;
+      gap: 6px;
+    }
+    .search-box {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 1rem; /* 16px 防止 iOS Safari 自動放大頁面 */
+      outline: none;
+      transition: all 0.2s;
+    }
+    .search-box:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .word-list {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .word-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #f8fafc;
+      font-size: 0.95rem;
+      min-height: 48px; /* 手機友善觸控尺寸 */
+    }
+    .word-item:hover, .word-item.selected {
+      background-color: var(--primary-light);
+    }
+    .word-item.active {
+      background-color: var(--primary-light);
+      color: var(--primary);
+      font-weight: 600;
+      border-left: 4px solid var(--primary);
+    }
+    .word-item-dict {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    /* 主視圖 (內文) */
+    .main-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      background: #f8fafc;
+      height: 100%;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .toolbar {
+      padding: 12px 20px;
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .btn {
+      background: white;
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      min-height: 38px;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--primary); color: white; border: none; }
+    .btn-danger { color: var(--danger); border-color: var(--danger); }
+    .btn-icon { padding: 6px 10px; font-size: 1.1rem; }
+
+    .btn-back {
+      display: none; /* 桌面隱藏，手機版顯示 */
+      margin-right: 8px;
+    }
+
+    .article-container {
+      padding: 24px 32px;
+      max-width: 860px;
+      margin: 0 auto;
+      width: 100%;
+      flex: 1;
+    }
+
+    .dict-card {
+      background: var(--panel-bg);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      padding: 22px;
+      margin-bottom: 18px;
+    }
+    .entry-header {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+      border-bottom: 1px dashed var(--border);
+      padding-bottom: 10px;
+    }
+    .entry-word { font-size: 1.8rem; font-weight: 700; color: var(--text-main); }
+    .entry-pron { font-family: "Lucida Sans Unicode", "DejaVu Sans", sans-serif; font-size: 1rem; color: var(--text-muted); }
+    .btn-audio { background: none; border: none; color: var(--primary); cursor: pointer; font-size: 1.35rem; padding: 4px 8px; }
+    .dict-badge {
+      margin-left: auto;
+      font-size: 0.72rem;
+      background: var(--tag-bg);
+      color: var(--tag-text);
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .pos-group { margin-top: 14px; }
+    .pos-tag { display: inline-block; font-size: 0.85rem; font-weight: 600; color: var(--primary); background: #e0f2fe; padding: 2px 8px; border-radius: 4px; margin-bottom: 6px; }
+    .sense-list { list-style-type: decimal; padding-left: 20px; }
+    .sense-item { margin-bottom: 12px; line-height: 1.6; }
+    .primary-def { font-weight: 600; font-size: 1.05rem; color: #1e293b; }
+    .sec-def { color: #475569; font-size: 0.95rem; margin-left: 6px; }
+    .examples { margin-top: 6px; padding-left: 10px; border-left: 2px solid #cbd5e1; }
+    .example-item { font-size: 0.9rem; color: #334155; margin-top: 4px; }
+    .example-item .trans { color: #64748b; margin-left: 6px; display: block; margin-top: 2px; }
+
+    /* Modal 彈窗 */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: none; align-items: center; justify-content: center; z-index: 1000;
+      padding: 12px;
+    }
+    .modal {
+      background: white; border-radius: 12px; max-width: 650px; width: 100%;
+      max-height: 85vh; max-height: 85dvh; display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .modal-head {
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-body { padding: 16px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+    .modal-foot {
+      padding: 12px 16px; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; background: #f8fafc;
+    }
+    .dict-mgmt-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .dict-mgmt-table th, .dict-mgmt-table td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+    .dict-mgmt-table th { background: #f1f5f9; font-weight: 600; }
+
+    /* ========================================================
+       📱 Mobile 響應式適配 (螢幕寬度小於 768px)
+       ======================================================== */
+    @media (max-width: 768px) {
+      body { position: relative; }
+
+      /* 側邊欄全螢幕化 */
+      .sidebar {
+        width: 100%;
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+      }
+
+      /* 主釋義畫面預設藏在右邊，查詞後移入 */
+      .main-view {
+        width: 100%;
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        transform: translateX(100%);
+        transition: transform 0.25s ease-out;
+      }
+
+      /* 當處於展示釋義模式 */
+      body.show-detail .main-view {
+        transform: translateX(0);
+      }
+
+      .btn-back { display: inline-flex; }
+      .article-container { padding: 16px; }
+      .entry-word { font-size: 1.5rem; }
+      .dict-card { padding: 16px; }
+
+      /* 表格在小手機螢幕上可橫向捲動 */
+      .modal-body { overflow-x: auto; }
+      .dict-mgmt-table th, .dict-mgmt-table td { padding: 6px 8px; font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 左側 (手機上為第一層頁面) -->
+  <aside class="sidebar" id="sidebarPanel">
+    <div class="header">
+      <h1>📖 LinguaDesk</h1>
+      <button class="btn" type="button" onclick="openDictManager()">⚙️ 管理辭典</button>
+    </div>
+
+    <div class="dict-selector-wrap">
+      <select id="dictSelect" onchange="executeSearch(true)">
+        <option value="ALL">全部辭典 (英漢 / 漢英聯合)</option>
+      </select>
+    </div>
+
+    <div class="search-form-wrap">
+      <form id="searchForm" onsubmit="handleFormSubmit(event)">
+        <div class="search-input-group">
+          <!-- 加入 enterkeyhint="search"，在手機虛擬鍵盤呈現「搜尋」按鈕 -->
+          <input type="search" id="searchInput" class="search-box" placeholder="輸入單字，按 Enter 搜尋..." enterkeyhint="search" autofocus autocomplete="off">
+          <button type="submit" class="btn btn-primary">搜尋</button>
+        </div>
+      </form>
+    </div>
+
+    <ul class="word-list" id="wordList"></ul>
+  </aside>
+
+  <!-- 右側 (手機上查詞後滑入展示) -->
+  <main class="main-view" id="mainView">
+    <div class="toolbar">
+      <div style="display: flex; align-items: center;">
+        <!-- 手機專屬返回按鍵 -->
+        <button class="btn btn-back" type="button" onclick="switchToListMode()">← 返回</button>
+        <span id="currentStatus" style="font-size: 0.85rem; color: var(--text-muted);">就緒</span>
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button class="btn" type="button" onclick="document.getElementById('importFile').click()">📥 匯入</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImportDict(event)">
+      </div>
+    </div>
+
+    <div class="article-container" id="contentArea"></div>
+  </main>
+
+  <!-- 辭典管理彈窗 -->
+  <div class="modal-overlay" id="dictModal">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 style="font-size: 1.05rem;">辭典管理中心</h3>
+        <button class="btn btn-icon" type="button" onclick="closeDictManager()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
+          管理離線詞庫。可勾選啟用、個別備份匯出或刪除：
+        </p>
+        <table class="dict-mgmt-table">
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;">啟用</th>
+              <th>辭典名稱</th>
+              <th style="width: 50px;">方向</th>
+              <th style="width: 60px;">詞數</th>
+              <th style="width: 95px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="dictTableBody"></tbody>
+        </table>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-danger" type="button" onclick="clearAllData()">恢復原廠</button>
+        <button class="btn btn-primary" type="button" onclick="closeDictManager()">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ========================================================
+       1. 預設雙向離線詞庫範例
+       ======================================================== */
+    const DEFAULT_DICTS = [
+      {
+        id: "demo_ec",
+        name: "精選英漢雙解辭典",
+        enabled: true,
+        lang_source: "en",
+        lang_target: "zh",
+        entries: [
+          {
+            word: "epiphany",
+            pron: "/ɪˈpɪfəni/",
+            pos_groups: [
+              {
+                pos: "n. 名詞",
+                senses: [
+                  {
+                    primary: "頓悟；靈光一閃",
+                    secondary: "a moment of sudden and great revelation",
+                    examples: [{ src: "He had an sudden epiphany.", tgt: "他忽然頓悟了。" }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            word: "serendipity",
+            pron: "/ˌserənˈdɪpəti/",
+            pos_groups: [
+              {
+                pos: "n. 名詞",
+                senses: [
+                  {
+                    primary: "機緣巧合；意外驚喜",
+                    secondary: "good luck in finding valuable things unexpectedly",
+                    examples: [{ src: "Meeting you was pure serendipity.", tgt: "遇見你完全是緣分與幸運。" }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        id: "demo_ce",
+        name: "實用漢英辭典",
+        enabled: true,
+        lang_source: "zh",
+        lang_target: "en",
+        entries: [
+          {
+            word: "堅持",
+            pron: "jiān chí / gin1 ci4",
+            pos_groups: [
+              {
+                pos: "v. 動詞",
+                senses: [
+                  {
+                    primary: "persevere; persist in",
+                    secondary: "堅定不移地繼續",
+                    examples: [{ src: "堅持就是勝利。", tgt: "Persistence leads to victory." }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            word: "頓悟",
+            pron: "dùn wù / deon6 ng6",
+            pos_groups: [
+              {
+                pos: "v. / n.",
+                senses: [
+                  {
+                    primary: "epiphany; sudden enlightenment",
+                    secondary: "豁然開朗",
+                    examples: [{ src: "他頓悟了人生的真諦。", tgt: "He realized the true meaning of life." }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ];
+
+    /* ========================================================
+       2. IndexedDB 離線存儲引擎
+       ======================================================== */
+    const DB_NAME = "LinguaDesk_Universal_V3";
+    let db = null;
+    let loadedDicts = [];
+    let currentNavIndex = -1;
+    let isComposing = false;
+
+    function initDB() {
+      return new Promise((resolve) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains("dicts")) {
+            d.createObjectStore("dicts", { keyPath: "id" });
+          }
+        };
+        req.onsuccess = (e) => { db = e.target.result; resolve(); };
+      });
+    }
+
+    async function saveDictToDB(dict) {
+      if (dict.enabled === undefined) dict.enabled = true;
+      return new Promise((res) => {
+        const tx = db.transaction("dicts", "readwrite");
+        tx.objectStore("dicts").put(dict);
+        tx.oncomplete = () => res();
+      });
+    }
+
+    async function loadAllFromDB() {
+      return new Promise((res) => {
+        const tx = db.transaction("dicts", "readonly");
+        const req = tx.objectStore("dicts").getAll();
+        req.onsuccess = () => res(req.result || []);
+      });
+    }
+
+    async function deleteDictFromDB(id) {
+      return new Promise((res) => {
+        const tx = db.transaction("dicts", "readwrite");
+        tx.objectStore("dicts").delete(id);
+        tx.oncomplete = () => res();
+      });
+    }
+
+    /* ========================================================
+       3. 檢索與視圖切換 (支援桌面與手機)
+       ======================================================== */
+    const searchInput = document.getElementById("searchInput");
+    const wordList = document.getElementById("wordList");
+    const contentArea = document.getElementById("contentArea");
+    const dictSelect = document.getElementById("dictSelect");
+
+    // 切換回手機列表模式
+    function switchToListMode() {
+      document.body.classList.remove("show-detail");
+    }
+
+    // 切換至手機釋義詳情模式
+    function switchToDetailMode() {
+      document.body.classList.add("show-detail");
+    }
+
+    function getActiveDicts() {
+      const selected = dictSelect.value;
+      const base = loadedDicts.filter(d => d.enabled !== false);
+      if (selected === "ALL") return base;
+      return base.filter(d => d.id === selected);
+    }
+
+    function executeSearch(openFirst = false) {
+      const rawInput = searchInput.value.trim();
+      const kw = rawInput.toLowerCase();
+      wordList.innerHTML = "";
+      currentNavIndex = -1;
+
+      const dicts = getActiveDicts();
+      const hits = [];
+
+      dicts.forEach(dict => {
+        (dict.entries || []).forEach(entry => {
+          const matchWord = entry.word && entry.word.toLowerCase().includes(kw);
+          const matchPron = entry.pron && entry.pron.toLowerCase().includes(kw);
+          const matchDef = entry.pos_groups && entry.pos_groups.some(g =>
+            g.senses && g.senses.some(s => s.primary && s.primary.toLowerCase().includes(kw))
+          );
+
+          if (!kw || matchWord || matchPron || matchDef) {
+            hits.push({ word: entry.word, dictName: dict.name, entry: entry });
+          }
+        });
+      });
+
+      // 排序：完全符合最先，其次開頭匹配
+      hits.sort((a, b) => {
+        if (kw) {
+          const aExact = a.word.toLowerCase() === kw;
+          const bExact = b.word.toLowerCase() === kw;
+          if (aExact && !bExact) return -1;
+          if (!aExact && bExact) return 1;
+
+          const aStarts = a.word.toLowerCase().startsWith(kw);
+          const bStarts = b.word.toLowerCase().startsWith(kw);
+          if (aStarts && !bStarts) return -1;
+          if (!aStarts && bStarts) return 1;
+        }
+        return a.word.localeCompare(b.word);
+      });
+
+      // 渲染列表
+      hits.slice(0, 60).forEach((item, index) => {
+        const li = document.createElement("li");
+        li.className = "word-item";
+        li.dataset.index = index;
+        li.innerHTML = `
+          <span>${item.word}</span>
+          <span class="word-item-dict">${item.dictName.slice(0, 6)}..</span>
+        `;
+        li.onclick = () => {
+          highlightIndex(index);
+          renderDetail(item.word);
+          // 手機點擊單字後切換至詳情
+          if (window.innerWidth <= 768) switchToDetailMode();
+        };
+        wordList.appendChild(li);
+      });
+
+      // Enter 搜尋開第一項
+      if (openFirst) {
+        if (hits.length > 0) {
+          highlightIndex(0);
+          renderDetail(hits[0].word);
+          if (window.innerWidth <= 768) switchToDetailMode();
+        } else if (rawInput !== "") {
+          contentArea.innerHTML = `
+            <div style="text-align:center; padding:60px 16px; color:var(--text-muted);">
+              <h3>未找到符合結果</h3>
+              <p style="margin-top:8px;">在已啟用的辭典中找不到「<strong>${rawInput}</strong>」。</p>
+            </div>
+          `;
+          if (window.innerWidth <= 768) switchToDetailMode();
+        }
+      }
+    }
+
+    function handleFormSubmit(e) {
+      if (e) e.preventDefault();
+      searchInput.blur(); // 手機上按搜尋後收起軟鍵盤
+      executeSearch(true);
+    }
+
+    function highlightIndex(index) {
+      const items = wordList.querySelectorAll(".word-item");
+      items.forEach((it, i) => {
+        it.classList.toggle("active", i === index);
+        it.classList.toggle("selected", i === index);
+      });
+      currentNavIndex = index;
+    }
+
+    // 鍵盤監聽
+    searchInput.addEventListener("compositionstart", () => { isComposing = true; });
+    searchInput.addEventListener("compositionend", () => { isComposing = false; });
+
+    searchInput.addEventListener("keydown", (e) => {
+      if (isComposing) return;
+
+      const items = wordList.querySelectorAll(".word-item");
+      if (e.key === "Enter") {
+        e.preventDefault();
+        searchInput.blur();
+        if (currentNavIndex >= 0 && items[currentNavIndex]) {
+          items[currentNavIndex].click();
+        } else {
+          executeSearch(true);
+        }
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (items.length === 0) return;
+        currentNavIndex = Math.min(items.length - 1, currentNavIndex + 1);
+        highlightIndex(currentNavIndex);
+        items[currentNavIndex].scrollIntoView({ block: "nearest" });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (items.length === 0) return;
+        currentNavIndex = Math.max(0, currentNavIndex - 1);
+        highlightIndex(currentNavIndex);
+        items[currentNavIndex].scrollIntoView({ block: "nearest" });
+      }
+    });
+
+    searchInput.addEventListener("input", () => {
+      if (!isComposing) executeSearch(false);
+    });
+
+    // 詳情排版
+    function renderDetail(word) {
+      const dicts = getActiveDicts();
+      const results = [];
+
+      dicts.forEach(d => {
+        const found = (d.entries || []).find(e => e.word.toLowerCase() === word.toLowerCase());
+        if (found) results.push({ dict: d, entry: found });
+      });
+
+      if (results.length === 0) return;
+
+      let html = "";
+      results.forEach(res => {
+        const { dict, entry } = res;
+        const lang = dict.lang_source || "en";
+        html += `
+          <div class="dict-card">
+            <div class="entry-header">
+              <span class="entry-word">${entry.word}</span>
+              ${entry.pron ? `<span class="entry-pron">${entry.pron}</span>` : ""}
+              <button class="btn-audio" type="button" onclick="speak('${entry.word.replace(/'/g, "\\'")}', '${lang}')" title="語音朗讀">🔊</button>
+              <span class="dict-badge">${dict.name}</span>
+            </div>
+        `;
+
+        (entry.pos_groups || []).forEach(g => {
+          html += `
+            <div class="pos-group">
+              <span class="pos-tag">${g.pos}</span>
+              <ol class="sense-list">
+          `;
+          (g.senses || []).forEach(s => {
+            html += `
+              <li class="sense-item">
+                <span class="primary-def">${s.primary}</span>
+                ${s.secondary ? `<span class="sec-def">${s.secondary}</span>` : ""}
+            `;
+            if (s.examples && s.examples.length > 0) {
+              html += `<div class="examples">`;
+              s.examples.forEach(ex => {
+                html += `<div class="example-item">• ${ex.src} <span class="trans">${ex.tgt}</span></div>`;
+              });
+              html += `</div>`;
+            }
+            html += `</li>`;
+          });
+          html += `</ol></div>`;
+        });
+        html += `</div>`;
+      });
+
+      contentArea.innerHTML = html;
+      contentArea.parentElement.scrollTop = 0; // 置頂檢視
+    }
+
+    // 發音
+    function speak(text, lang) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = (lang === 'zh' || /[\u4e00-\u9fa5]/.test(text)) ? "zh-HK" : "en-US";
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    }
+
+    /* ========================================================
+       4. 辭典管理中心
+       ======================================================== */
+    function openDictManager() {
+      renderDictManagerTable();
+      document.getElementById("dictModal").style.display = "flex";
+    }
+
+    function closeDictManager() {
+      document.getElementById("dictModal").style.display = "none";
+      updateDictDropdown();
+      executeSearch(false);
+    }
+
+    function renderDictManagerTable() {
+      const tbody = document.getElementById("dictTableBody");
+      tbody.innerHTML = "";
+
+      loadedDicts.forEach(d => {
+        const tr = document.createElement("tr");
+        const dir = (d.lang_source === 'zh') ? "漢英" : "英漢";
+        tr.innerHTML = `
+          <td style="text-align: center;">
+            <input type="checkbox" style="width:18px;height:18px;" ${d.enabled !== false ? 'checked' : ''} onchange="toggleDictEnable('${d.id}', this.checked)">
+          </td>
+          <td><strong>${d.name}</strong><br><small style="color:var(--text-muted)">${d.id}</small></td>
+          <td><span style="font-size:0.75rem; background:#f1f5f9; padding:2px 4px; border-radius:4px;">${dir}</span></td>
+          <td>${d.entries ? d.entries.length : 0}</td>
+          <td>
+            <div style="display:flex; gap:4px;">
+              <button class="btn" style="padding:4px 6px; font-size:0.75rem;" onclick="exportSingleDict('${d.id}')">匯出</button>
+              <button class="btn btn-danger" style="padding:4px 6px; font-size:0.75rem;" onclick="handleDeleteDict('${d.id}')">刪除</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function toggleDictEnable(id, isEnabled) {
+      const d = loadedDicts.find(item => item.id === id);
+      if (d) {
+        d.enabled = isEnabled;
+        await saveDictToDB(d);
+      }
+    }
+
+    async function handleDeleteDict(id) {
+      if (loadedDicts.length <= 1) {
+        alert("最少保留一本辭典！");
+        return;
+      }
+      const target = loadedDicts.find(d => d.id === id);
+      if (confirm(`確定要刪除「${target ? target.name : id}」辭典嗎？`)) {
+        await deleteDictFromDB(id);
+        await reloadData();
+        renderDictManagerTable();
+      }
+    }
+
+    function exportSingleDict(id) {
+      const d = loadedDicts.find(item => item.id === id);
+      if (!d) return;
+      const blob = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${d.id}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    async function handleImportDict(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const dict = JSON.parse(evt.target.result);
+          if (!dict.id || !dict.entries || !Array.isArray(dict.entries)) {
+            alert("匯入失敗：非標準辭典 JSON 格式！");
+            return;
+          }
+          await saveDictToDB(dict);
+          await reloadData();
+          alert(`辭典「${dict.name}」已成功安裝！`);
+          executeSearch(false);
+        } catch(err) {
+          alert("解析檔案錯誤，非合法的 JSON！");
+        }
+      };
+      reader.readAsText(file, "UTF-8");
+      e.target.value = "";
+    }
+
+    async function clearAllData() {
+      if (confirm("這將重設所有資料並恢復預設辭典，確定嗎？")) {
+        const tx = db.transaction("dicts", "readwrite");
+        tx.objectStore("dicts").clear();
+        tx.oncomplete = async () => {
+          await reloadData();
+          closeDictManager();
+          alert("已恢復預設狀態！");
+        };
+      }
+    }
+
+    function updateDictDropdown() {
+      dictSelect.innerHTML = `<option value="ALL">全部辭典 (英漢 / 漢英聯合)</option>`;
+      loadedDicts.filter(d => d.enabled !== false).forEach(d => {
+        dictSelect.innerHTML += `<option value="${d.id}">${d.name} (${d.entries.length})</option>`;
+      });
+      document.getElementById("currentStatus").innerText = `已載入 ${loadedDicts.length} 本辭典`;
+    }
+
+    async function reloadData() {
+      loadedDicts = await loadAllFromDB();
+      if (loadedDicts.length === 0) {
+        for (const d of DEFAULT_DICTS) await saveDictToDB(d);
+        loadedDicts = [...DEFAULT_DICTS];
+      }
+      updateDictDropdown();
+    }
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      await initDB();
+      await reloadData();
+      executeSearch(false);
+      // 桌面版預設呈現首項釋義；手機版則留在列表首頁
+      if (window.innerWidth > 768 && loadedDicts[0]?.entries[0]) {
+        renderDetail(loadedDicts[0].entries[0].word);
+      }
+    });
+
+    // 視窗尺寸改變時的自我校正
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 768) {
+        switchToListMode();
+      }
+    });
+  </script>
+</body>
+</html>
